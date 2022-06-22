@@ -134,13 +134,13 @@ async function main(){
       if (!fs.existsSync(`${fullpath.replace('.mp4','')}`)) {
         fs.mkdirSync(`${fullpath.replace('.mp4','')}`)
       }
-      exec(`ffmpeg -i ${fullpath} -r 30.0 ${fullpath.replace('.mp4','')}/%4d.jpg`, (err, stdout, stderr) => {
-          var imglist = fs.readdirSync(fullpath.replace('.mp4',''));
+      exec(`ffmpeg -i ${fullpath} -r 30.0 ${fullpath.replace('.mp4','').replace(' ','')}/%4d.jpg`, (err, stdout, stderr) => {
+          var imglist = fs.readdirSync(fullpath.replace('.mp4','').replace(' ',''));
           imglist.forEach(function(image){
-            var imagePath = path.join(fullpath.replace('.mp4',''),image);
+            var imagePath = path.join(fullpath.replace('.mp4','').replace(' ',''),image);
             var imageStats = fs.statSync(imagePath);
             if(!imageStats.isDirectory()&&imagePath.indexOf('jpg')!=-1){
-              domain(imagePath,fullpath.replace('.mp4',''))
+              domain(imagePath,fullpath.replace('.mp4','').replace(' ',''))
             }
           })
       })
