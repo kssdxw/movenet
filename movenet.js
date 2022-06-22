@@ -4,7 +4,7 @@ const process = require('process');
 const log = require('@vladmandic/pilogger');
 const tf = require('@tensorflow/tfjs-node');
 const canvas = require('canvas');
-
+const { exec } = require('child_process');
 const modelOptions = {
   // modelPath: 'file://model-lightning3/movenet-lightning.json',
   modelPath: 'file://model-lightning4/movenet-lightning.json',
@@ -13,9 +13,9 @@ const modelOptions = {
 };
 
 const bodyParts = ['nose', 'leftEye', 'rightEye', 'leftEar', 'rightEar', 'leftShoulder', 'rightShoulder', 'leftElbow', 'rightElbow', 'leftWrist', 'rightWrist', 'leftHip', 'rightHip', 'leftKnee', 'rightKnee', 'leftAnkle', 'rightAnkle'];
-
+let filedir = '';
 // save image with processed results
-async function saveImage(res, img) {
+async function saveImage(res, img,dir) {
   // create canvas
   const c = new canvas.Canvas(img.inputShape[1], img.inputShape[0]);
   const ctx = c.getContext('2d');
@@ -59,12 +59,31 @@ async function saveImage(res, img) {
   connectParts(['rightShoulder', 'leftShoulder', 'leftHip', 'rightHip', 'rightShoulder'], '#9900FF');
 
   // write canvas to jpeg
-  const outImage = `outputs/${path.basename(img.fileName)}`;
+  if (!fs.existsSync(`${dir}/outputs`)) {
+    fs.mkdirSync(`${dir}/outputs`)
+  }
+  const outImage = `${dir}/outputs/${path.basename(img.fileName)}`;
   const out = fs.createWriteStream(outImage);
   out.on('finish', () => log.state('Created output image:', outImage, 'size:', [c.width, c.height]));
   out.on('error', (err) => log.error('Error creating image:', outImage, err));
   const stream = c.createJPEGStream({ quality: 0.6, progressive: true, chromaSubsampling: true });
   stream.pipe(out);
+  if (!fs.existsSync(`${dir}/txt`)) {
+    fs.mkdirSync(`${dir}/txt`)
+  }
+  let result = {"version":1.3,"people":[{"person_id":[-1],"pose_keypoints_2d":[],"face_keypoints_2d":[],"hand_left_keypoints_2d":[],"hand_right_keypoints_2d":[],"pose_keypoints_3d":[],"face_keypoints_3d":[],"hand_left_keypoints_3d":[],"hand_right_keypoints_3d":[]}]}
+  res.map((value)=>{
+    result.people[0].pose_keypoints_2d.push(value.x)
+    result.people[0].pose_keypoints_2d.push(value.y)
+    result.people[0].pose_keypoints_2d.push(value.score)
+  })
+  fs.writeFile(`${dir}/txt/${path.basename(img.fileName).replace(".jpg",".json")}`, JSON.stringify(result), err => {
+  if (err) {
+    console.error(err)
+    return
+  }
+  //文件写入成功。
+})
 }
 
 // load image from file and prepares image tensor that fits the model
@@ -104,8 +123,35 @@ async function processResults(res, img) {
   }
   return parts;
 }
+async function main(){
+  const filelist = process.argv.length > 2 ? process.argv[2] : null;
+  var arr = fs.readdirSync(filelist);
+ 
+  arr.forEach(function(item){
+    var fullpath = path.join(filelist,item);
+    var stats = fs.statSync(fullpath);
+    if(!stats.isDirectory()&&fullpath.indexOf('mp4')!=-1){
+      if (!fs.existsSync(`${fullpath.replace('.mp4','')}`)) {
+        fs.mkdirSync(`${fullpath.replace('.mp4','')}`)
+      }
+      exec(`ffmpeg -i ${fullpath} -r 30.0 ${fullpath.replace('.mp4','')}/%4d.jpg`, (err, stdout, stderr) => {
+          var imglist = fs.readdirSync(fullpath.replace('.mp4',''));
+          imglist.forEach(function(image){
+            var imagePath = path.join(fullpath.replace('.mp4',''),image);
+            var imageStats = fs.statSync(imagePath);
+            if(!imageStats.isDirectory()&&imagePath.indexOf('jpg')!=-1){
+              domain(imagePath,fullpath.replace('.mp4',''))
+            }
+          })
+      })
+      
+    }
+  });
+  
 
-async function main() {
+}
+
+async function domain(filename,dir) {
   log.header();
 
   // init tensorflow
@@ -123,7 +169,7 @@ async function main() {
   // load image and get approprite tensor for it
   let inputSize = Object.values(model.modelSignature['inputs'])[0].tensorShape.dim[2].size;
   if (inputSize === -1) inputSize = 256;
-  const imageFile = process.argv.length > 2 ? process.argv[2] : null;
+  const imageFile =filename;
   if (!imageFile || !fs.existsSync(imageFile)) {
     log.error('Specify a valid image file');
     process.exit();
@@ -147,7 +193,7 @@ async function main() {
   log.data('Results:', results);
 
   // save processed image
-  await saveImage(results, img);
+  await saveImage(results, img,dir);
 }
 
 main();
