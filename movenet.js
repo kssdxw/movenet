@@ -131,8 +131,8 @@ async function main(){
     var fullpath = path.join(filelist,item);
     var stats = fs.statSync(fullpath);
     if(!stats.isDirectory()&&fullpath.indexOf('mp4')!=-1){
-      if (!fs.existsSync(`${fullpath.replace('.mp4','')}`)) {
-        fs.mkdirSync(`${fullpath.replace('.mp4','')}`)
+      if (!fs.existsSync(`${fullpath.replace('.mp4','').replace(' ','')}`)) {
+        fs.mkdirSync(`${fullpath.replace('.mp4','').replace(' ','')}`)
       }
       exec(`ffmpeg -i ${fullpath} -r 30.0 ${fullpath.replace('.mp4','').replace(' ','')}/%4d.jpg`, (err, stdout, stderr) => {
           var imglist = fs.readdirSync(fullpath.replace('.mp4','').replace(' ',''));
